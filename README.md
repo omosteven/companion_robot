@@ -29,6 +29,11 @@ Note: An Official Name Will Be Given To It Later. Also this is a project in prog
 - C/C++
 - LLM
 - OpenCV + Computer Vision
+- SLAM
+- Sound Localization
+- PID & Self-Balance Algorithm
+- Real-time Decision Making Algorithm
+- Control System (Differential Steering, Balancing, etc)
 - AutoDesk Fusion360
 
 ## TOOLS
@@ -71,6 +76,13 @@ Note: An Official Name Will Be Given To It Later. Also this is a project in prog
 - C++/C
 - Electronics Engineering
 - Embedded Systems
+
+## THINGS IT SHOULD DO
+- MOVE AROUND
+- Interact With Human
+- Listen to Commands (Come, Go, Questions)
+- Create Alarm, Reminders
+- More things: In documention progress
 
 ## DEVELOPER
 - Steven Omole-Adebomi
