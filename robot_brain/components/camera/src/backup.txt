@@ -1,0 +1,144 @@
+#include "camera.hpp"
+#include "driver/gpio.h"
+#include "esp_log.h"
+#include <cstring>
+#include "driver/gpio.h"
+
+// static const char *TAG = "Camera";
+
+Camera::Camera() : m_jpegBuffer(nullptr), m_currentFrameSize(0), m_taskHandle(nullptr), m_isInitialized(false) {}
+
+Camera::~Camera()
+{
+    if (m_taskHandle)
+        vTaskDelete(m_taskHandle);
+    if (m_jpegBuffer)
+        free(m_jpegBuffer);
+    uart_driver_delete(UART_PORT);
+}
+
+esp_err_t Camera::init()
+{
+
+    gpio_reset_pin(static_cast<gpio_num_t>(RX_PIN));
+    gpio_set_direction(static_cast<gpio_num_t>(RX_PIN), GPIO_MODE_INPUT);
+    gpio_set_pull_mode(static_cast<gpio_num_t>(RX_PIN), GPIO_PULLDOWN_ONLY); // Force it LOW if empty
+
+    // Wait a millisecond for the voltage to settle
+    vTaskDelay(pdMS_TO_TICKS(10));
+
+    // 2. Read the physical pin state
+    if (gpio_get_level(static_cast<gpio_num_t>(RX_PIN)) == 0)
+    {
+        ESP_LOGE("CameraCheck", "❌ DETECT: Camera board is NOT physically connected or lacks power!");
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    ESP_LOGI("CameraCheck", "DETECT: Camera board connection detected on pin %d!", RX_PIN);
+
+    m_jpegBuffer = static_cast<uint8_t *>(malloc(MAX_JPEG_SIZE));
+    if (!m_jpegBuffer)
+        return ESP_ERR_NO_MEM;
+
+    uart_config_t uart_config = {};
+    uart_config.baud_rate = BAUD_RATE;
+    uart_config.data_bits = UART_DATA_8_BITS;
+    uart_config.parity = UART_PARITY_DISABLE;
+    uart_config.stop_bits = UART_STOP_BITS_1;
+    uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
+    uart_config.source_clk = UART_SCLK_DEFAULT;
+
+    if (uart_driver_install(UART_PORT, RX_BUF_SIZE * 2, 0, 0, nullptr, 0) != ESP_OK ||
+        uart_param_config(UART_PORT, &uart_config) != ESP_OK ||
+        uart_set_pin(UART_PORT, TX_PIN, RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE) != ESP_OK)
+    {
+        return ESP_FAIL;
+    }
+
+    m_isInitialized = true;
+    return ESP_OK;
+}
+
+esp_err_t Camera::startTask()
+{
+    if (!m_isInitialized)
+        return ESP_FAIL;
+
+    BaseType_t result = xTaskCreatePinnedToCore(
+        Camera::rxTaskTrampoline, "cam_rx_loop", 4096, this, 5, &m_taskHandle, 1);
+    return (result == pdPASS) ? ESP_OK : ESP_FAIL;
+}
+
+const uint8_t *Camera::getLatestFrame(size_t &out_frame_size) const
+{
+    out_frame_size = m_currentFrameSize;
+    return m_jpegBuffer;
+}
+
+void Camera::rxTaskTrampoline(void *pvParameters)
+{
+    static_cast<Camera *>(pvParameters)->executionLoop();
+}
+
+void Camera::executionLoop()
+{
+    const uint8_t sync_marker[4] = {0xAA, 0xBB, 0xCC, 0xDD};
+    // uint8_t byte_hunt = 0;
+    uint32_t incoming_len = 0;
+    uint32_t sync_index = 0;
+
+    while (true)
+    {
+        uint8_t current_byte = 0;
+
+        if (uart_read_bytes(UART_PORT, &current_byte, 1, portMAX_DELAY) > 0)
+        {
+            if (current_byte == sync_marker[sync_index])
+            {
+                sync_index++;
+            }
+            else
+            {
+                sync_index = (current_byte == sync_marker[0]) ? 1 : 0;
+            }
+        }
+
+        // once it has sequentially hit all 4 bytes of the header, proceed
+        if (sync_index < 4)
+        {
+            continue;
+        }
+
+        sync_index = 0; // reset state for the next frame
+
+        uint8_t len_bytes[4]; // safe size acquisition
+        if (uart_read_bytes(UART_PORT,  reinterpret_cast<uint8_t *>(&incoming_len), 4, portMAX_DELAY) != 4)
+        {
+            continue; // failed to grab size packet. restart the loop
+        }
+
+        // rebuild the 32-bit integer out of the 4 bytes 'size'
+        // incoming_len = ((uint32_t)len_bytes[0]) |
+        //                ((uint32_t)len_bytes[1] << 8) |
+        //                ((uint32_t)len_bytes[2] << 16) |
+        //                ((uint32_t)len_bytes[3] << 24);
+
+        if (incoming_len > MAX_JPEG_SIZE || incoming_len == 0)
+        {
+            ESP_LOGE("RECEIVER", "Invalid frame size received: %d", incoming_len);
+            continue;
+        }
+
+        int read_bytes = uart_read_bytes(UART_PORT, m_jpegBuffer, incoming_len, pdMS_TO_TICKS(5000));
+
+        if (read_bytes == incoming_len)
+        {
+            m_currentFrameSize = incoming_len;
+        }
+        else
+        {
+            m_currentFrameSize = 0;
+            ESP_LOGE("RECEIVER", "Timeout reading frame. Expected %d, got %d", incoming_len, read_bytes);
+        }
+    }
+}

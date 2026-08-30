@@ -1,0 +1,2 @@
+# Enable External PSRAM / SPIRAM
+CONFIG_ESP_SPIRAM=y

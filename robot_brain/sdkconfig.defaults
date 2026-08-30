@@ -1,0 +1,8 @@
+# Enable External PSRAM / SPIRAM
+CONFIG_ESP_SPIRAM=y
+
+# Set PSRAM Mode to Octal (8-line interface)
+CONFIG_SPIRAM_MODE_OCT=y
+
+# Turn Compiler Optimization to Performance (-O2)
+CONFIG_COMPILER_OPTIMIZATION_PERF=y

@@ -1,0 +1,22 @@
+{
+  "idf.currentSetup": "/Users/StevenOmole/.espressif/v6.0.2/esp-idf",
+  "idf.port": "/dev/tty.usbserial-14420",
+  "idf.openOcdConfigs": [
+    "board/esp32s3-builtin.cfg"
+  ],
+  "idf.customExtraVars": {
+    "IDF_TARGET": "esp32s3"
+  },
+  "clangd.path": "/Users/StevenOmole/.espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clangd",
+  "clangd.arguments": [
+    "--background-index",
+    "--query-driver=**",
+    "--compile-commands-dir=/Users/StevenOmole/Documents/Robotics/bbunit8/build"
+  ],
+  "idf.flashType": "UART",
+  "idf.ccacheEnable": true,
+  "idf.ninjaArgs": [
+    "-j8"
+  ],
+  "cmake.sourceDirectory": "/Users/StevenOmole/Documents/Robotics/bbunit8/robot_brain"
+}

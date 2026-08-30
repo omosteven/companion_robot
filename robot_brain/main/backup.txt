@@ -1,0 +1,192 @@
+#include <cstdio>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_log.h"
+#include "display.hpp"
+#include "servo.hpp"
+#include "colors.hpp"
+
+extern "C" void app_main(void)
+{
+    Display display;
+    Servo neck_pan;
+    
+    // =====================================================
+    // 1. Initialize Display Matrix Engine
+    // =====================================================
+    esp_err_t display_err = display.init();
+    if (display_err != ESP_OK) {
+        ESP_LOGE("MAIN", "Display initialization failed: %s", esp_err_to_name(display_err));
+        return;
+    } else {
+        ESP_LOGI("MAIN", "Display initialized successfully");
+    }
+
+    // Paint initial resting background layout face looking forward
+    display.draw_default_eyes(0, 0);
+
+    // =====================================================
+    // 2. Initialize Servo Hardware PWM Channels
+    // =====================================================
+    // Maps your physical servo signal pin to GPIO 5
+    esp_err_t servo_err = neck_pan.init(5, LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+    if (servo_err != ESP_OK) {
+        ESP_LOGE("MAIN", "Servo initialization failed: %s", esp_err_to_name(servo_err));
+        return;
+    } else {
+        ESP_LOGI("MAIN", "Servo hardware linked to GPIO 5 successfully");
+    }
+
+    // Pause briefly to let voltages stabilize before launching tracking routines
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
+    // =====================================================
+    // 3. Multitasking Animation Expression Loop
+    // =====================================================
+    while (true) {
+        // Step A: Look Right on screen AND pan physical robot neck right
+        ESP_LOGI("ROBOT", "Expression Action: Tracking RIGHT...");
+        neck_pan.set_angle(135, 1000, Servo::Direction::CLOCKWISE);
+        display.animate_pupil_move(20, 0, 400); 
+        vTaskDelay(pdMS_TO_TICKS(2000));
+
+        // Step B: Look Left on screen AND pan physical robot neck left
+        ESP_LOGI("ROBOT", "Expression Action: Tracking LEFT...");
+        neck_pan.set_angle(45, 1500, Servo::Direction::CLOCKWISE);
+        display.animate_pupil_move(-20, 0, 400);
+        vTaskDelay(pdMS_TO_TICKS(2000));
+
+        // Step C: Blink eyes and bring everything back to center home-base axis
+        ESP_LOGI("ROBOT", "Expression Action: Re-centering & Blinking...");
+        neck_pan.middle();
+        display.animate_pupil_move(0, 0, 300);
+        display.animate_blink(120);
+        vTaskDelay(pdMS_TO_TICKS(4000));
+    }
+}
+
+
+
+
+#include <stdio.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "driver/gpio.h"
+#include "esp_log.h"
+#include "display.hpp"
+#include "display_conf.hpp"
+#include "colors.hpp"
+#include "servo.hpp"
+
+// #define BLINK_GPIO GPIO_NUM_4
+static const char *TAG = "ROBOT_BRAIN";
+
+extern "C" void app_main(void)
+{
+    Display display;
+    Servo neck;
+
+    esp_err_t display_err = display.init();
+    esp_err_t neck_err = neck.init(5, LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+
+    if (display_err != ESP_OK)
+    {
+        ESP_LOGE("MAIN", "Display initialization failed: %s",
+                 esp_err_to_name(err));
+    }
+    else
+    {
+        ESP_LOGI("MAIN", "Display initialized successfully");
+    }
+
+      if (neck_err != ESP_OK)
+    {
+        ESP_LOGE("MAIN", "Servo initialization failed: %s",
+                 esp_err_to_name(err));
+    }
+    else
+    {
+        ESP_LOGI("MAIN", "Servo initialized successfully");
+    }
+
+    ESP_ERROR_CHECK(
+        display.clear(Color::BLACK));
+
+    display.render();
+
+    // display.draw_default_eyes(0, 0);
+    // vTaskDelay(pdMS_TO_TICKS(3000));
+
+    display.draw_string("F28J BOT", 275, 270, 2, Color::GREEN);
+    display.draw_string("v1.0", 430, 275, 1, Color::GREEN);
+
+    display.draw_string("By Steven O.", 275, 300, 1, Color::RED);
+    display.render();
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
+    while (true)
+    {
+        neck.set_angle(135, 1500, Servo::Direction::CLOCKWISE);
+        // 1. Look around tracking the room environment
+        ESP_LOGI("AI_FACE", "Expression Trigger: Looking Around...");
+        display.animate_look_around();
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        display.animate_look_up_down();
+        vTaskDelay(pdMS_TO_TICKS(1000));
+
+        // // ESP_LOGI("AI_FACE", "Expression Trigger: Blinking...");
+        display.animate_blink(20, false);
+
+        neck.set_angle(45, 1000, Servo::Direction::COUNTER_CLOCKWISE);
+        vTaskDelay(pdMS_TO_TICKS(1000));
+
+        //  display.draw_grid_layout(4, Color::ORANGE);
+        // display.fill_grid_cell(4, 0, Color::RED);     // Top Left Box
+        // display.fill_grid_cell(4, 1, Color::GREEN);
+        // display.fill_grid_cell(4, 2, Color::BLUE);    // Bottom Right Box
+        // display.fill_grid_cell(4, 3, Color::YELLOW);
+
+        //  display.draw_string("SYS OK", 45, 65, 3, Color::GREEN); // Size 3 (24x24 pixels per letter)
+
+        // // Top-Right Box Quadrant (Cell 1)
+        // display.draw_string("BATT", 285, 45, 2, Color::WHITE);  // Size 2
+        // display.draw_string("11.8V", 285, 85, 3, Color::YELLOW); // Large size yellow readout
+
+        // // Bottom-Left Box Quadrant (Cell 2)
+        // display.draw_string("SPEED", 45, 205, 2, Color::WHITE);
+        // display.draw_string("300 RPM", 45, 245, 2, Color::CYAN);
+
+        // // Bottom-Right Box Quadrant (Cell 3)
+        // display.draw_string("BBUNIT8 v1", 320, 280, 2, Color::RED);
+
+        // display.render();                             // Flash to screen instantly
+        // vTaskDelay(pdMS_TO_TICKS(3000));
+
+        // =================================================
+        // Test 2: 6 Item Grid (White Grid Lines)
+        // =================================================
+    }
+
+    // while (true){
+    //     vTaskDelay(
+    //         pdMS_TO_TICKS(1000)
+    //     );
+    // }
+
+    // ESP_LOGI(TAG, "Initializing Clean Robot Project Workspace...");
+
+    // gpio_reset_pin(BLINK_GPIO);
+    // gpio_set_direction(BLINK_GPIO, GPIO_MODE_OUTPUT);
+
+    // while (1) {
+    //     ESP_LOGI(TAG, "LED Status: ON");
+    //     gpio_set_level(BLINK_GPIO, 1);
+    //     vTaskDelay(pdMS_TO_TICKS(5000)); // 1 second delay
+
+    //     ESP_LOGI(TAG, "LED Status: OFF");
+    //     gpio_set_level(BLINK_GPIO, 0);
+    //     vTaskDelay(pdMS_TO_TICKS(5000)); // 1 second delay
+    // }
+}
+
+// idf.py -p /dev/cu.usbmodem5AE70714221 flash

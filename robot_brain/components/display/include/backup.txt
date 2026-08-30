@@ -1,0 +1,70 @@
+#pragma once
+
+#include <cstdint>
+
+#include "esp_err.h"
+#include "esp_lcd_panel_io.h"
+#include "esp_lcd_panel_ops.h"
+
+
+class Display
+{
+public:
+
+    Display();
+    ~Display();
+
+    // Hardware resources should not be copied.
+    Display(const Display&) = delete;
+    Display& operator=(const Display&) = delete;
+
+
+    // Initialize the SPI bus and ILI9488 panel.
+    esp_err_t init();
+    //  the entire display with a color.
+    esp_err_t clear(uint16_t color);
+    // Draw a single pixel.
+    esp_err_t draw_pixel(
+        int x,
+        int y,
+        uint16_t color
+    );
+    // Draw an RGB565 bitmap.
+    esp_err_t draw_bitmap(
+        int x,
+        int y,
+        int width,
+        int height,
+        const uint16_t* bitmap
+    );
+
+    esp_err_t fill_rect(int x, int y, int width, int height, uint16_t color);
+    esp_err_t draw_circle(int xc, int yc, int r, uint16_t color);
+    esp_err_t fill_circle(int xc, int yc, int r, uint16_t color);
+
+    void draw_default_eyes(int look_offset_x = 0, int look_offset_y = 0);
+    void animate_blink();
+    void animate_look_around();
+
+    void animate_pupil_move(int target_x, int target_y, int duration_ms);
+    
+    bool is_initialized() const;
+
+    int width() const;
+
+    int height() const;
+
+
+private:
+
+    esp_lcd_panel_io_handle_t panel_io_;
+
+    esp_lcd_panel_handle_t panel_;
+
+    bool initialized_;
+
+    bool eyes_drawn_ = false;
+
+    int prev_look_x_ = 0;      // Stores last known X offset
+    int prev_look_y_ = 0;  // stores last known Y offset
+};

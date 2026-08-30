@@ -1,0 +1,13 @@
+/robot_brain/build
+/robot_brain/managed_components
+
+robot_brain/build
+robot_brain/managed_components
+
+/robot_camera/build
+/robot_camera/managed_components
+
+robot_camera/build
+robot_camera/managed_components
+
+build

@@ -1,0 +1,603 @@
+#include "display.hpp"
+#include "display_conf.hpp"
+
+#include <cstdint>
+
+#include "esp_check.h"
+#include "esp_log.h"
+
+#include "driver/spi_master.h"
+
+#include "esp_lcd_panel_io.h"
+#include "esp_lcd_panel_ops.h"
+
+#include "esp_lcd_ili9488.h"
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "driver/gpio.h"
+
+#include "colors.hpp"
+
+static const char* TAG = "Display";
+
+
+Display::Display()
+    : panel_io_(nullptr),
+      panel_(nullptr),
+      initialized_(false)
+{
+}
+
+
+Display::~Display()
+{
+    if (panel_ != nullptr)
+    {
+        esp_lcd_panel_del(panel_);
+        panel_ = nullptr;
+    }
+
+    if (panel_io_ != nullptr)
+    {
+        esp_lcd_panel_io_del(panel_io_);
+        panel_io_ = nullptr;
+    }
+}
+
+
+esp_err_t Display::init()
+{
+    if (initialized_)
+    {
+        return ESP_OK;
+    }
+
+    ESP_LOGI(
+        TAG,
+        "Initializing ILI9488 display..."
+    );
+
+
+    // 1. Configure SPI bus
+    spi_bus_config_t bus_config{};
+
+    bus_config.sclk_io_num =
+        DisplayConfig::PIN_SCLK;
+
+    bus_config.mosi_io_num =
+        DisplayConfig::PIN_MOSI;
+
+    bus_config.miso_io_num =
+        DisplayConfig::PIN_MISO;
+
+    bus_config.quadwp_io_num = GPIO_NUM_NC;
+
+    bus_config.quadhd_io_num = GPIO_NUM_NC;
+
+    bus_config.max_transfer_sz =
+        DisplayConfig::WIDTH *
+        DisplayConfig::HEIGHT *
+        3;
+
+
+    ESP_RETURN_ON_ERROR(
+        spi_bus_initialize(
+            DisplayConfig::SPI_HOST,
+            &bus_config,
+            SPI_DMA_CH_AUTO
+        ),
+        TAG,
+        "Failed to initialize SPI bus"
+    );
+
+
+    ESP_LOGI(
+        TAG,
+        "SPI bus initialized"
+    );
+
+
+    // 2. Configure SPI LCD panel IO
+
+    esp_lcd_panel_io_spi_config_t io_config{};
+
+    io_config.cs_gpio_num =
+        DisplayConfig::PIN_CS;
+
+    io_config.dc_gpio_num =
+        DisplayConfig::PIN_DC;
+
+    io_config.spi_mode = 0;
+
+    io_config.pclk_hz =
+        DisplayConfig::SPI_FREQUENCY_HZ;
+
+    io_config.trans_queue_depth =
+        DisplayConfig::TRANS_QUEUE_DEPTH;
+
+    io_config.lcd_cmd_bits = 8;
+
+    io_config.lcd_param_bits = 8;
+
+
+    ESP_RETURN_ON_ERROR(
+        esp_lcd_new_panel_io_spi(
+            DisplayConfig::SPI_HOST,
+            &io_config,
+            &panel_io_
+        ),
+        TAG,
+        "Failed to create LCD SPI IO"
+    );
+
+
+    ESP_LOGI(
+        TAG,
+        "LCD SPI IO initialized"
+    );
+
+
+    // 3. Configure ILI9488
+
+    esp_lcd_panel_dev_config_t panel_config = {};
+
+    panel_config.reset_gpio_num =
+        DisplayConfig::PIN_RST;
+
+    /*
+     * ILI9488 SPI uses 18-bit color mode.
+     *
+     * The atanisoft driver handles conversion from
+     * our RGB565 application data to the required
+     * 18-bit ILI9488 transfer format.
+     */
+    panel_config.bits_per_pixel = 18;
+
+    /*
+     * ESP-IDF 6.x uses rgb_ele_order.
+     */
+    
+    panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
+    panel_config.data_endian = LCD_RGB_DATA_ENDIAN_BIG;
+    panel_config.flags.reset_active_high = 0;
+
+
+    // 4. Create ILI9488 panel
+    constexpr size_t COLOR_BUFFER_SIZE = DisplayConfig::WIDTH * 40 * 3;
+
+    ESP_RETURN_ON_ERROR(
+        esp_lcd_new_panel_ili9488(
+            panel_io_,
+            &panel_config,
+            COLOR_BUFFER_SIZE,
+            &panel_
+        ),
+        TAG,
+        "Failed to create ILI9488 panel"
+    );
+
+
+    ESP_LOGI(
+        TAG,
+        "ILI9488 panel created"
+    );
+
+
+    // 5. Hardware reset
+    ESP_RETURN_ON_ERROR(
+        esp_lcd_panel_reset(panel_),
+        TAG,
+        "Failed to reset LCD"
+    );
+
+
+    // 6. Initialize ILI9488
+    ESP_RETURN_ON_ERROR(
+        esp_lcd_panel_init(panel_),
+        TAG,
+        "Failed to initialize ILI9488"
+    );
+
+    // 7. Orientation
+    ESP_RETURN_ON_ERROR(
+        esp_lcd_panel_swap_xy(
+            panel_,
+            true
+        ),
+        TAG,
+        "Failed to configure XY swap"
+    );
+
+
+    // 8. Configure display mirror
+    ESP_RETURN_ON_ERROR(
+        esp_lcd_panel_mirror(
+            panel_,
+            true,
+            false
+        ),
+        TAG,
+        "Failed to configure display mirror"
+    );
+
+
+    // 9. Turn display ON
+    ESP_RETURN_ON_ERROR(
+        esp_lcd_panel_disp_on_off(
+            panel_,
+            true
+        ),
+        TAG,
+        "Failed to turn display on"
+    );
+
+    ESP_LOGI(TAG, "Forcing physical ILI9488 MADCTL Landscape register command...");
+    
+    // Command 0x36 is MADCTL (Memory Access Control register)
+    // 0x28 or 0x48 sets the chip explicitly into Landscape (BGR mode)
+    uint8_t madctl_landscape_param = 0x28; 
+    // 10. Force hardware register for landscape 
+    ESP_RETURN_ON_ERROR(
+        esp_lcd_panel_io_tx_param(panel_io_, 0x36, &madctl_landscape_param, 1),
+        TAG,
+        "Failed to force hardware landscape register"
+    );
+
+    initialized_ = true;
+
+
+    ESP_LOGI(
+        TAG,
+        "ILI9488 initialized successfully: %dx%d",
+        DisplayConfig::WIDTH,
+        DisplayConfig::HEIGHT
+    );
+
+
+    return ESP_OK;
+}
+
+
+// Clear screen
+esp_err_t Display::clear(uint16_t color)
+{
+    if (!initialized_) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    constexpr int WIDTH = 480;
+    constexpr int HEIGHT = 320;
+    constexpr int LINES = 40;
+
+    static uint16_t buffer[WIDTH * LINES];
+
+    // Fill the tile with the requested RGB565 color
+    for (int i = 0; i < WIDTH * LINES; ++i) {
+        buffer[i] = color;
+    }
+
+    for (int y = 0; y < HEIGHT; y += LINES) {
+
+        ESP_RETURN_ON_ERROR(
+            esp_lcd_panel_draw_bitmap(
+                panel_,
+                0,
+                y,
+                WIDTH,
+                y + LINES,
+                buffer
+            ),
+            TAG,
+            "Failed to draw screen"
+        );
+
+        vTaskDelay(pdMS_TO_TICKS(2));
+    }
+
+    return ESP_OK;
+}
+
+
+// Draw pixel
+esp_err_t Display::draw_pixel(
+    int x,
+    int y,
+    uint16_t color)
+{
+    if (!initialized_)
+    {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+
+    if (x < 0 ||
+        x >= DisplayConfig::WIDTH ||
+        y < 0 ||
+        y >= DisplayConfig::HEIGHT)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+
+    uint16_t pixel = color;
+
+
+    return esp_lcd_panel_draw_bitmap(
+        panel_,
+        x,
+        y,
+        x + 1,
+        y + 1,
+        &pixel
+    );
+}
+
+// Draw bitmap
+esp_err_t Display::draw_bitmap(
+    int x,
+    int y,
+    int width,
+    int height,
+    const uint16_t* bitmap)
+{
+    if (!initialized_)
+    {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+
+    if (bitmap == nullptr)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+
+    if (width <= 0 || height <= 0)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+
+    if (x < 0 ||
+        y < 0 ||
+        x + width > DisplayConfig::WIDTH ||
+        y + height > DisplayConfig::HEIGHT)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+
+    return esp_lcd_panel_draw_bitmap(
+        panel_,
+        x,
+        y,
+        x + width,
+        y + height,
+        bitmap
+    );
+}
+
+esp_err_t Display::fill_rect(int x, int y, int width, int height, uint16_t color){
+    if (!initialized_) return ESP_ERR_INVALID_STATE;
+    if(width <= 0 || height <= 0) return ESP_ERR_INVALID_ARG;
+
+    // Safety bounding check corrections
+    if (x < 0) { width += x; x = 0; }
+    if (y < 0) { height += y; y = 0; }
+    if (x + width > DisplayConfig::WIDTH) width = DisplayConfig::WIDTH - x;
+    if (y + height > DisplayConfig::HEIGHT) height = DisplayConfig::HEIGHT - y;
+
+    constexpr int CHUNK_ROWS = 20;
+    
+    // ⚠️ THE CRUCIAL FIX: Added 'static' so this massive 19KB buffer 
+    // lives safely in global RAM instead of on the small task stack!
+    static uint16_t local_buffer[480 * CHUNK_ROWS]; 
+
+    // Populate the color buffer
+    for (int i = 0; i < width * CHUNK_ROWS; ++i){
+        local_buffer[i] = color;
+    }
+
+    int remaining_rows = height;
+    int current_y = y;
+
+    while (remaining_rows > 0){
+        int rows_to_draw = (remaining_rows > CHUNK_ROWS) ? CHUNK_ROWS : remaining_rows;
+
+        ESP_RETURN_ON_ERROR(
+            esp_lcd_panel_draw_bitmap(panel_, x, current_y, x + width, current_y + rows_to_draw, local_buffer),
+            TAG, "Failed to flush fill_rect segment"
+        );
+
+        current_y += rows_to_draw;
+        remaining_rows -= rows_to_draw;
+        
+        // Give FreeRTOS time to breathe
+        vTaskDelay(pdMS_TO_TICKS(1));
+    }
+
+    return ESP_OK;
+}
+
+
+esp_err_t Display::fill_circle(int xc, int yc, int r, uint16_t color){
+    if (!initialized_) return ESP_ERR_INVALID_STATE;
+
+    int x =0;
+    int y = r;
+    int d = 3 -2 *r;
+
+    auto draw_horizontal_line = [this](int x1, int x2, int y_row, uint16_t col){
+        if (y_row >= 0 && y_row < DisplayConfig::HEIGHT){
+            if (x1 <0 ) x1 = 0;
+            if (x2 >= DisplayConfig::WIDTH) x2 = DisplayConfig::WIDTH -1;
+            if (x1 <= x2){
+                this->fill_rect(x1, y_row, (x2 - x1) + 1, 1, col);
+            }
+        }
+    };
+
+    while (y >= x){
+        draw_horizontal_line(xc - x, xc + x, yc + y, color);
+        draw_horizontal_line(xc - x, xc + x, yc - y, color);
+        draw_horizontal_line(xc - y, xc + y, yc + x, color);
+        draw_horizontal_line(xc - y, xc + y, yc - x, color);
+
+        x++;
+
+        if (d > 0){
+            y --;
+            d= d + 4 * (x-y) + 10;
+        }else{
+            d = d + 4 * x + 6;
+        }
+
+    }
+
+    return ESP_OK;
+}
+
+
+void Display::draw_default_eyes(int look_offset_x, int look_offset_y){
+
+    const int LEFT_EYE_CENTER_X = 140;
+    const int RIGHT_EYE_CENTER_X = 340;
+    const int EYE_CENTER_Y  = 160;
+    const int EYE_RADIUS = 55;
+    const int PUPIL_RADIUS = 30;
+    const uint16_t PUPIL_COLOR =Color::BLUE; // Cyan
+
+    // 1. FIRST TIME CALL: Draw full layout background and white circles
+    if (!eyes_drawn_) {
+        this->clear(Color::BLACK); // Full black background once
+
+        // Draw structural white eye circles
+        this->fill_circle(LEFT_EYE_CENTER_X, EYE_CENTER_Y, EYE_RADIUS, 0xFFFF);
+        this->fill_circle(RIGHT_EYE_CENTER_X, EYE_CENTER_Y, EYE_RADIUS, 0xFFFF);
+        
+        eyes_drawn_ = true; // State locked!
+    } 
+    // 2. SUBSEQUENT CALLS: Erase ONLY the previous pupil shapes back to white
+    else if (prev_look_x_ != look_offset_x || prev_look_y_ != look_offset_y) {
+        this->fill_circle(LEFT_EYE_CENTER_X + prev_look_x_, EYE_CENTER_Y + prev_look_y_, PUPIL_RADIUS, 0xFFFF);
+        this->fill_circle(RIGHT_EYE_CENTER_X + prev_look_x_, EYE_CENTER_Y + prev_look_y_, PUPIL_RADIUS, 0xFFFF);
+
+        vTaskDelay(pdMS_TO_TICKS(12));
+    }
+
+    // 3. Draw the pupils at their new coordinates
+    this->fill_circle(LEFT_EYE_CENTER_X + look_offset_x, EYE_CENTER_Y + look_offset_y, PUPIL_RADIUS, PUPIL_COLOR);
+    this->fill_circle(RIGHT_EYE_CENTER_X + look_offset_x, EYE_CENTER_Y + look_offset_y, PUPIL_RADIUS, PUPIL_COLOR);
+
+    // 4. Save current position state for the next cycle
+    prev_look_x_ = look_offset_x;
+    prev_look_y_ = look_offset_y;
+
+};
+
+void Display::animate_pupil_move(int target_x, int target_y, int duration_ms) {
+    if (!initialized_) return;
+
+    int start_x = prev_look_x_;
+    int start_y = prev_look_y_;
+    
+    // Total animation frames (running at ~30 frames per second)
+    int steps = duration_ms / 33; 
+    if (steps < 1) steps = 1;
+
+    for (int i = 1; i <= steps; ++i) {
+        // Linear Interpolation Math (LERP) to find the micro-step coordinates
+        float t = (float)i / steps;
+        int current_x = start_x + (int)((target_x - start_x) * t);
+        int current_y = start_y + (int)((target_y - start_y) * t);
+
+        // Draw the pupils at the updated coordinate step
+        this->draw_default_eyes(current_x, current_y);
+        
+        // Frame timing delay pause
+        vTaskDelay(pdMS_TO_TICKS(33)); 
+    }
+
+    // Force absolute lock onto final target coordinate destination
+    this->draw_default_eyes(target_x, target_y);
+}
+
+void Display::animate_blink(){
+    if (!initialized_) return;
+
+    // Wipe the face to black ONCE at the start
+    this->clear(0x0000);
+
+    // Eyelids closing down
+    for (int eye_height = 65; eye_height >= 5; eye_height -= 15){
+        // Erase old position locally by drawing black blocks over the eye socket region
+        this->fill_rect(85, 105, 110, 110, 0x0000);
+        this->fill_rect(285, 105, 110, 110, 0x0000);
+
+        // Draw the shrinking open eye iris area
+        this->fill_rect(85, 160 - eye_height, 110, eye_height * 2, 0xFFFF);
+        this->fill_rect(285, 160 - eye_height, 110, eye_height * 2, 0xFFFF);
+        vTaskDelay(pdMS_TO_TICKS(30)); // Give the system hardware breathing room
+    }
+
+    // Completely closed state slot line
+    this->fill_rect(85, 105, 110, 110, 0x0000);
+    this->fill_rect(285, 105, 110, 110, 0x0000);
+    this->fill_rect(85, 158, 110, 4, 0x07FF);
+    this->fill_rect(285, 158, 110, 4, 0x07FF);
+    vTaskDelay(pdMS_TO_TICKS(150));
+
+    // Reopen eyes back up smoothly
+    for (int eye_height = 5; eye_height <= 55; eye_height += 15){
+        this->fill_rect(85, 105, 110, 110, 0x0000);
+        this->fill_rect(285, 105, 110, 110, 0x0000);
+
+        this->fill_rect(85, 160 - eye_height, 110, eye_height * 2, 0xFFFF);
+        this->fill_rect(285, 160 - eye_height, 110, eye_height * 2, 0xFFFF);
+        vTaskDelay(pdMS_TO_TICKS(30));
+    }
+
+    // Return back to open center eyes cleanly
+    this->draw_default_eyes(0, 0);
+}
+
+
+void Display::animate_look_around(){
+
+  this->animate_pupil_move(20, 0, 100);
+        vTaskDelay(pdMS_TO_TICKS(250));
+
+        // 2. Smoothly slide eyes all the way to the Left over 800 milliseconds
+       this->animate_pupil_move(-20, 0, 100);
+        vTaskDelay(pdMS_TO_TICKS(250));
+
+        // 3. Smoothly slide back to the Center over 400 milliseconds
+       this->animate_pupil_move(0, 0, 100);
+        vTaskDelay(pdMS_TO_TICKS(250));
+    // this->animate_pupil_move(20, 0, 600);
+    // vTaskDelay(pdMS_TO_TICKS(800));
+
+    // this->animate_pupil_move(-20, 0, 800);
+    // vTaskDelay(pdMS_TO_TICKS(800));
+
+    // this->animate_pupil_move(0, 0, 400);
+}
+// State
+bool Display::is_initialized() const
+{
+    return initialized_;
+}
+
+
+// Dimensions
+int Display::width() const
+{
+    return DisplayConfig::WIDTH;
+}
+
+
+int Display::height() const
+{
+    return DisplayConfig::HEIGHT;
+}
