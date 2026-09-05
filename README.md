@@ -5,8 +5,8 @@ Note: An Official Name Will Be Given To It Later. Also this is a project in prog
 You can access some videos and images of the robot under videos_images folder while the development is still ongoing.
 Also displayed here below:
 
-![alt text](<videos_images/2026-09-05 22.21.56.jpg>)
-<!-- ![alt text](<videos_images/2026-09-05 22.22.22.jpg>) -->
+<!-- ![alt text](<videos_images/2026-09-05 22.21.56.jpg>) -->
+![alt text](<videos_images/2026-09-05 22.22.22.jpg>)
 ![alt text](<videos_images/2026-09-05 22.21.52.jpg>)
 
 </div>
