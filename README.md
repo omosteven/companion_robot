@@ -4,16 +4,14 @@ Note: An Official Name Will Be Given To It Later. Also this is a project in prog
 ## VIDEOS
 You can access some videos and images of the robot under videos_images folder while the development is still ongoing.
 Also displayed here below:
-![Alt text](video_images/screenshot.png)
+<div style="display:flex; width:100%">
+
 ![alt text](<videos_images/2026-09-05 22.21.52.jpg>)
 ![alt text](<videos_images/2026-09-05 22.21.56.jpg>)
-![alt text](<videos_images/2026-09-05 22.22.01.jpg>)
 ![alt text](<videos_images/2026-09-05 22.22.22.jpg>)
-![alt text](<videos_images/2026-09-05 22.23.58.jpg>)
-![alt text](<videos_images/2026-09-05 22.24.01.jpg>)
-![alt text](<videos_images/2026-09-05 22.24.16.jpg>)
-<video controls src="videos_images/IMG_0663.MOV" title="Title"></video>
-<video controls src="videos_images/IMG_0734.MOV" title="Title"></video>
+</div>
+<video controls src="videos_images/IMG_0663.MOV" title="Video1"></video>
+<video controls src="videos_images/IMG_0734.MOV" title="Video2"></video>
 
 ## HARDWARE
 - Servo (MG996R) x 2
