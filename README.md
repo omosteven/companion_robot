@@ -117,42 +117,56 @@ AIN2 - Direction 2 Motor A -> GPIO PIN
 BIN1 - Direction 1 Motor B -> GPIO PIN
 BIN2 - Direction 2 Motor B -> GPIO PIN
 
-            LCD        DRIVER    MOTOR (+ ENCODER)           ESP          BATTERY
-            ----       AO1 ->    Motor 1 Red/White
-            ----        AO2 ->    Motor 1 White/Red
+PHYSICAL COMPONENT CONNECTIVITY OF THE SYSTEM:
 
-                    BO1 ->    Motor 2 Red/White
-                    BO2 ->    Motor 2 White/Red
+    MIC     CAMERA      LCD     DRIVER    MOTOR (+ ENCODER)          ESP          BATTERY
+                        ----    AO1 ->    Motor 1 Red/White
+                        ----    AO2 ->    Motor 1 White/Red
 
-                    ------    Motor 1 Purple             -> ESP VCC
-                    ------    Motor 1 Black              -> ESP GND  -> NEGATIVE
-                    ------    Motor 1 Yellow (Phase A)   -> GPIO
-                    ------    Motor 1 Green (Phase B)    -> GPIO
+                                BO1 ->    Motor 2 Red/White
+                                BO2 ->    Motor 2 White/Red
 
-                    ------    Motor 2 Purple             -> ESP VCC
-                    ------    Motor 2 Black              -> ESP GND  -> NEGATIVE
-                    ------    Motor 2 Yellow (Phase A)   -> GPIO
-                    ------    Motor 2 Green (Phase B)    -> GPIO
-                    VM        -------------------        ------      -> POSITIVE
-                    GND       -------------------        -> ESP GND  -> NEGATIVE
-                    VCC       -------------------        -> ESP VCC
+                                ------    Motor 1 Purple             -> ESP 3.3v
+                                ------    Motor 1 Black              -> ESP GND  -> NEGATIVE
+                                ------    Motor 1 Yellow (Phase A)   -> GPIO 16
+                                ------    Motor 1 Green (Phase B)    -> GPIO 15
 
-                    STBY      -------------------        -> GPIO(High)
-                    PWMA      -------------------        -> GPIO
-                    PWMB      -------------------        -> GPIO
-                    AIN1      -------------------        -> GPIO
-                    AIN2      -------------------        -> GPIO
-                    BIN1      -------------------        -> GPIO
-                    BIN2      -------------------        -> GPIO
+                                ------    Motor 2 Purple             -> ESP 3.3v
+                                ------    Motor 2 Black              -> ESP GND  -> NEGATIVE
+                                ------    Motor 2 Yellow (Phase A)   -> GPIO 7
+                                ------    Motor 2 Green (Phase B)    -> GPIO 6
+                                VM        -------------------        ------      -> POSITIVE
+                                GND       -------------------        -> ESP GND  -> NEGATIVE
+                                VCC       -------------------        -> ESP 3.3v
+
+                                STBY      -------------------        -> GPIO 8
+                                PWMA      -------------------        -> GPIO 5
+                                PWMB      -------------------        -> GPIO 4
+                                AIN1      -------------------        -> GPIO 2
+                                AIN2      -------------------        -> GPIO 1
+                                BIN1      -------------------        -> GPIO 42
+                                BIN2      -------------------        -> GPIO 41
+                        
+                        SCLK    ------    -------------------        -> GPIO 13
+                        MOSI    ------    -------------------        -> GPIO 12
+                        MISO    ------    -------------------        -> GPIO 14
+                        CS      ------    -------------------        -> GPIO 11
+                        DC      ------    -------------------        -> GPIO 10
+                        RST     ------    -------------------        -> GPIO 9
+                        LED     ------    -------------------        -> 3.3v
+                        GND     ------    -------------------        -> ESP GND  
+                        VCC     ------    -------------------        -> ESP 5.0v 
+
+            RX          ------  ------    -------------------        -> GPIO 18
+            TX          ------  ------    -------------------        -> GPIO 16
+            VCC         ------  ------    -------------------        -> ESP 5.0v
+            GND         ------  ------    -------------------        -> ESP GND
 
 
 
 
 
-
-
-
-DRIVER    MOTOR (+ ENCODER)           ESP          BATTERY
+<!-- DRIVER    MOTOR (+ ENCODER)           ESP          BATTERY
 AO1 ->    Motor 1 Red/White
 AO2 ->    Motor 1 White/Red
 
@@ -179,7 +193,7 @@ PWMB      -------------------        -> GPIO 4
 AIN1      -------------------        -> GPIO 2
 AIN2      -------------------        -> GPIO 1
 BIN1      -------------------        -> GPIO 42
-BIN2      -------------------        -> GPIO 41
+BIN2      -------------------        -> GPIO 41 -->
 
 ESP32S3 FREENOVE BOARD DATASHEET
 Free GPIO(23): 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 21, 38, 39, 40, 41, 42
