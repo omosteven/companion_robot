@@ -63,7 +63,7 @@ esp_err_t Camera::init()
         vTaskDelay(pdMS_TO_TICKS(10));                                           // 2. Read the physical pin state
         if (gpio_get_level(rx_gpio) == 0)
         {
-            ESP_LOGE("CameraCheck", "❌ DETECT: Camera board is NOT physically connected or lacks power!");
+            ESP_LOGE("CameraCheck", "X DETECT: Camera board is NOT physically connected or lacks power!");
             return ESP_ERR_NOT_FOUND;
         }
         ESP_LOGI("CameraCheck", "DETECT: Camera board connection detected on pin %d!", RX_PIN);

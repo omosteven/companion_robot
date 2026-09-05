@@ -7,13 +7,17 @@
 
 #include "display.hpp"
 #include "servo.hpp"
-#include "colors.hpp"
 #include "camera.hpp"
+#include "motor.hpp"
+
+#include "colors.hpp"
+
 #include "esp_crc.h"
 
 Display display;
 Servo neck_pan;
 Camera camera;
+Motor motor;
 
 void camera_display_engine_task(void *pvParameters)
 {
@@ -97,6 +101,19 @@ void camera_display_engine_task(void *pvParameters)
     }
 }
 
+void encoder_track_task(void *pvParameters)
+{
+    int pulse_count_left_motor = 0;
+    int pulse_count_right_motor = 0;
+    while (true)
+    {
+
+        motor.read_encoder(&pulse_count_left_motor, &pulse_count_right_motor);
+        ESP_LOGI("ENCODER", "ENCODER Motor data LEFT=%d RIGHT=%d", pulse_count_left_motor * -1, pulse_count_right_motor);
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+}
+
 extern "C" void app_main(void)
 {
 
@@ -124,56 +141,91 @@ extern "C" void app_main(void)
         0,
         0);
 
-    esp_err_t servo_err =
-        neck_pan.init(
-            5,
-            LEDC_LOW_SPEED_MODE,
-            LEDC_CHANNEL_0);
+    // esp_err_t servo_err =
+    //     neck_pan.init(
+    //         5,
+    //         LEDC_LOW_SPEED_MODE,
+    //         LEDC_CHANNEL_0);
 
-    if (servo_err != ESP_OK)
+    // if (servo_err != ESP_OK)
+    // {
+    //     ESP_LOGE(
+    //         "MAIN",
+    //         "Servo initialization failed: %s",
+    //         esp_err_to_name(servo_err));
+
+    //     return;
+    // }
+
+    // ESP_LOGI(
+    //     "MAIN",
+    //     "Servo hardware linked to GPIO 5 successfully");
+
+    // esp_err_t camera_err =
+    //     camera.init();
+
+    // if (camera_err != ESP_OK)
+    // {
+    //     ESP_LOGE(
+    //         "MAIN",
+    //         "Camera initialization failed: %s",
+    //         esp_err_to_name(camera_err));
+
+    //     return;
+    // }
+
+    // if (camera.startTask() != ESP_OK)
+    // {
+    //     ESP_LOGE(
+    //         "MAIN",
+    //         "Failed to start camera RX task");
+
+    //     return;
+    // }
+
+    // ESP_LOGI(
+    //     "MAIN",
+    //     "Camera UART receiver started");
+
+    esp_err_t motor_err =
+        motor.init();
+
+    if (motor_err != ESP_OK)
     {
         ESP_LOGE(
             "MAIN",
-            "Servo initialization failed: %s",
-            esp_err_to_name(servo_err));
+            "Motor initialization failed: %s",
+            esp_err_to_name(motor_err));
 
         return;
     }
+    // BaseType_t task_result =
+    //     xTaskCreatePinnedToCore(
+    //         camera_display_engine_task,
+    //         "video_render_engine",
+    //         8192,
+    //         nullptr,
+    //         6,
+    //         nullptr,
+    //         1);
+
+    // if (task_result != pdPASS)
+    // {
+    //     ESP_LOGE(
+    //         "MAIN",
+    //         "Failed to create video render task");
+
+    //     return;
+    // }
 
     ESP_LOGI(
         "MAIN",
-        "Servo hardware linked to GPIO 5 successfully");
-
-    esp_err_t camera_err =
-        camera.init();
-
-    if (camera_err != ESP_OK)
-    {
-        ESP_LOGE(
-            "MAIN",
-            "Camera initialization failed: %s",
-            esp_err_to_name(camera_err));
-
-        return;
-    }
-
-    if (camera.startTask() != ESP_OK)
-    {
-        ESP_LOGE(
-            "MAIN",
-            "Failed to start camera RX task");
-
-        return;
-    }
-
-    ESP_LOGI(
-        "MAIN",
-        "Camera UART receiver started");
+        "Video render task started");
 
     BaseType_t task_result =
         xTaskCreatePinnedToCore(
-            camera_display_engine_task,
-            "video_render_engine",
+            motor.run_task,
+            "encoder_task",
             8192,
             nullptr,
             6,
@@ -184,19 +236,71 @@ extern "C" void app_main(void)
     {
         ESP_LOGE(
             "MAIN",
-            "Failed to create video render task");
+            "Failed to create encoder task");
 
         return;
     }
 
-    ESP_LOGI(
-        "MAIN",
-        "Video render task started");
-
     while (true)
     {
 
+        ESP_LOGI(
+            "MOTOR",
+            "Moving Forward");
+
+        motor.send_to_queue(600, 600, Motor::MovementType::STRAIGHT, 2000);
+
         vTaskDelay(
             pdMS_TO_TICKS(1000));
+        // ESP_LOGI(
+        //     "MOTOR",
+        //     "Moving Left");
+        // motor.turn_left(600, 2000);
+
+        // vTaskDelay(
+        //     pdMS_TO_TICKS(1000));
+
+        // ESP_LOGI(
+        //     "MOTOR",
+        //     "Moving Right");
+        // motor.turn_right(600, 2000);
+
+        // vTaskDelay(
+        //     pdMS_TO_TICKS(1000));
+
+        ESP_LOGI(
+            "MOTOR",
+            "Moving Reverse");
+        motor.send_to_queue(600, 600, Motor::MovementType::REVERSE, 2000);
+
+        vTaskDelay(
+            pdMS_TO_TICKS(1000));
+
+        // ESP_LOGI(
+        //     "MOTOR",
+        //     "Moving Spin");
+        // motor.spin(600, 2000);
+
+        // vTaskDelay(
+        //     pdMS_TO_TICKS(1000));
+        // motor.set_motor_speed(100, motor.Wheel::LEFT);
+        // motor.set_motor_direction(motor.MotorDirection::FORWARD, motor.Wheel::LEFT);
+
+        // motor.set_motor_speed(100, motor.Wheel::RIGHT);
+        // motor.set_motor_direction(motor.MotorDirection::FORWARD, motor.Wheel::RIGHT);
+
+        // vTaskDelay(
+        //     pdMS_TO_TICKS(3000));
+
+        //      ESP_LOGI(
+        // "MOTOR",
+        // "Moving Backward");
+        // motor.set_motor_speed(100, motor.Wheel::LEFT);
+        // motor.set_motor_direction(motor.MotorDirection::BACKWARD, motor.Wheel::LEFT);
+
+        // motor.set_motor_speed(100, motor.Wheel::RIGHT);
+        // motor.set_motor_direction(motor.MotorDirection::BACKWARD, motor.Wheel::RIGHT);
+        // vTaskDelay(
+        //     pdMS_TO_TICKS(3000));
     }
 }

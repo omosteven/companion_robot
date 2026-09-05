@@ -1,6 +1,9 @@
 # COMPANION ROBOT
 Note: An Official Name Will Be Given To It Later. Also this is a project in progress, so documentation will be updated often as it progresses.
 
+## VIDEOS
+You can access some videos and images of the robot under videos_images folder while the development is still ongoing.
+
 ## HARDWARE
 - Servo (MG996R) x 2
 - ESP32S3 (Freenove: comes with 8MB PSRAM)
@@ -84,5 +87,106 @@ Note: An Official Name Will Be Given To It Later. Also this is a project in prog
 - Create Alarm, Reminders
 - More things: In documention progress
 
+
+## WHEEL 
+Motor Pin Out
+- Red : Motor Power +
+- Black : Encoder Power -> GND
+- Yellow: Encoder Phase A (signal)
+- Green: Encoder Phase B (signal)
+- Purple: Encoder Power (3.3v)
+- White: Motor Power - 
+
+Driver
+VM - Motor Voltage
+GND - Ground
+VCC - Logic Voltage - 3.3v
+STBY - PULLED HIGH to enable the driver
+PWM (A/B) - Speed Control Motor A/B -> GPIO PWM PIN
+AIN1 - Direction 1 Motor A -> GPIO PIN
+AIN2 - Direction 2 Motor A -> GPIO PIN
+BIN1 - Direction 1 Motor B -> GPIO PIN
+BIN2 - Direction 2 Motor B -> GPIO PIN
+
+            LCD        DRIVER    MOTOR (+ ENCODER)           ESP          BATTERY
+            ----       AO1 ->    Motor 1 Red/White
+            ----        AO2 ->    Motor 1 White/Red
+
+                    BO1 ->    Motor 2 Red/White
+                    BO2 ->    Motor 2 White/Red
+
+                    ------    Motor 1 Purple             -> ESP VCC
+                    ------    Motor 1 Black              -> ESP GND  -> NEGATIVE
+                    ------    Motor 1 Yellow (Phase A)   -> GPIO
+                    ------    Motor 1 Green (Phase B)    -> GPIO
+
+                    ------    Motor 2 Purple             -> ESP VCC
+                    ------    Motor 2 Black              -> ESP GND  -> NEGATIVE
+                    ------    Motor 2 Yellow (Phase A)   -> GPIO
+                    ------    Motor 2 Green (Phase B)    -> GPIO
+                    VM        -------------------        ------      -> POSITIVE
+                    GND       -------------------        -> ESP GND  -> NEGATIVE
+                    VCC       -------------------        -> ESP VCC
+
+                    STBY      -------------------        -> GPIO(High)
+                    PWMA      -------------------        -> GPIO
+                    PWMB      -------------------        -> GPIO
+                    AIN1      -------------------        -> GPIO
+                    AIN2      -------------------        -> GPIO
+                    BIN1      -------------------        -> GPIO
+                    BIN2      -------------------        -> GPIO
+
+
+
+
+
+
+
+
+DRIVER    MOTOR (+ ENCODER)           ESP          BATTERY
+AO1 ->    Motor 1 Red/White
+AO2 ->    Motor 1 White/Red
+
+BO1 ->    Motor 2 Red/White
+BO2 ->    Motor 2 White/Red
+
+------    Motor 1 Purple             -> ESP VCC
+------    Motor 1 Black              -> ESP GND  -> NEGATIVE
+------    Motor 1 Yellow (Phase A)   -> GPIO 16
+------    Motor 1 Green (Phase B)    -> GPIO 15
+
+
+------    Motor 2 Purple             -> ESP VCC
+------    Motor 2 Black              -> ESP GND  -> NEGATIVE
+------    Motor 2 Yellow (Phase A)   -> GPIO 7
+------    Motor 2 Green (Phase B)    -> GPIO 6
+VM        -------------------        ------      -> POSITIVE
+GND       -------------------        -> ESP GND  -> NEGATIVE
+VCC       -------------------        -> ESP VCC
+
+STBY      -------------------        -> GPIO(High) 8
+PWMA      -------------------        -> GPIO 5
+PWMB      -------------------        -> GPIO 4
+AIN1      -------------------        -> GPIO 2
+AIN2      -------------------        -> GPIO 1
+BIN1      -------------------        -> GPIO 42
+BIN2      -------------------        -> GPIO 41
+
+ESP32S3 FREENOVE BOARD DATASHEET
+Free GPIO(23): 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 21, 38, 39, 40, 41, 42
+Strapping GPIOs(must not be pulled high/low strongly  during powerup but can use as regular): 0, 3, 45, 46
+Internal GPIOs(not usable): 26 - 32, 33-37, 19, 20, 47, 48
+
+
+
+
 ## DEVELOPER
 - Steven Omole-Adebomi
+
+
+## 
+<!-- Forward : Phase A goes High before Phase B
+Backward: Phase B goes High before Phase A
+
+A is low->Rise and B is Low) Increment
+A is low->Rise and B is High) Decrement -->
