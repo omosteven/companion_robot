@@ -14,26 +14,30 @@ Also displayed here below:
 <video controls src="videos_images/IMG_0734.MOV" title="Video2"></video>
 
 ## HARDWARE
-- Servo (MG996R) x 2
+- Servo (MG996R) x 1
 - ESP32S3 (Freenove: comes with 8MB PSRAM)
-- ESP32 Camera + Board
+- ESP32 Camera + Board + BLE + WiFi
 - TOF Sensor
 - Infrared Sensor
 - Temperature + Humidity Sensor
-- Low RPM GEARED 6v Motor * 2
+- Low RPM GEARED 6v Motor(comes with Quadrature Encoder) * 2
 - Dual Motor Driver (TB6612 DRV8833)
 - Jumper Cables
 - Elastic Strings
-- LCD Display
+- LCD Display(480x320 SPI ILI9488, comes with SD Slot)
 - LIPO Battery (7.4v)
-- INMP411 Microphone * 2
+- Lipo Charger
+- Fuse + Switches
+- INMP411 MEMS Microphone * 2
 - 4 ohms Speaker * 2
 - Digital Amplifier (PAM8403)
 - Stereo DAC Module (UDA1334A)
-- IMU MPU6050 Sensor
+- IMU MPU6050 Sensor(6-axis or 9-axis) * 2
 - LM2596 DC-DC 5V Step Down Voltage Regulator
+- Nvidia Jetson/Arduino Ventuno Q or any compute capable of running Quantizied AI Model
 - DC-DC Bulk Voltage Step Down Converter
-- Capacitors, Resistors
+- Capacitors(for noise reductions: 100nf, 1uf, 47-100uf, 1000uf), Resistors, Diodes (prevent back EMF)
+- Current Sensor (INA226 or INA219)
 
 ## SOFTWARE
 - ESP-IDF Package
@@ -47,6 +51,18 @@ Also displayed here below:
 - Real-time Decision Making Algorithm
 - Control System (Differential Steering, Balancing, etc)
 - AutoDesk Fusion360
+
+## COMPUTATIONS
+- ROS2
+- SLAM
+- OpenCV
+- YOLO
+- VLM & LLM
+- Speech Recognition
+- TTS
+- Navigation & Path Planning
+- High-level Behaviour
+- Multimodal Reasoning
 
 ## TOOLS
 - 3D Printer (Creality)
@@ -81,21 +97,24 @@ Also displayed here below:
         - idf_component.yml
 - cad_files
 
-## WANT TO CONTRIBUTE? - TECHNICAL SKILLS NEEDED
+<!-- ## WANT TO CONTRIBUTE? - TECHNICAL SKILLS NEEDED
+- Software Engineering
 - Machine Learning
 - Computer Vision
 - Reinforcement Learning
 - C++/C
 - Electronics Engineering
-- Embedded Systems
+- Embedded Systems -->
 
-## THINGS IT SHOULD DO
+<!-- ## THINGS IT SHOULD DO
 - MOVE AROUND
 - Interact With Human
 - Listen to Commands (Come, Go, Questions)
 - Create Alarm, Reminders
-- More things: In documention progress
+- More things: In documention progress -->
 
+## SOUND
+INMP411 -> ESP32 S3 -> UDA1334A -> PAM8403 -> Speaker
 
 ## WHEEL 
 Motor Pin Out
