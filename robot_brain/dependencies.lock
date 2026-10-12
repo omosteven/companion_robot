@@ -28,6 +28,16 @@ dependencies:
     - esp32c61
     - esp32h4
     version: 1.0.2
+  espressif/mdns:
+    component_hash: b5b30022c46302eab89c1d2e3b6fb5918a627563a7462f0ee284b22b9a934967
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.14.0
   idf:
     source:
       type: idf
@@ -35,7 +45,8 @@ dependencies:
 direct_dependencies:
 - atanisoft/esp_lcd_ili9488
 - espressif/esp_new_jpeg
+- espressif/mdns
 - idf
-manifest_hash: 625a2ba83fbd58d2548d3889e8cca51e7c15aa19eb21f76142b2cc59d8c8de55
+manifest_hash: 6ed02ef785c0557a7682636d4014372e8d4196e4d1ece86d6a960deafbccb635
 target: esp32s3
 version: 3.0.0

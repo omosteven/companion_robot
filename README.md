@@ -1,6 +1,9 @@
 # COMPANION ROBOT
 Note: An Official Name Will Be Given To It Later. Also this is a project in progress, so documentation will be updated often as it progresses.
 
+## 3D DESIGNS
+Link -> https://a360.co/4j9Taal
+
 ## VIDEOS
 You can access some videos and images of the robot under videos_images folder while the development is still ongoing.
 Also displayed here below:
@@ -158,7 +161,7 @@ PHYSICAL COMPONENT CONNECTIVITY OF THE SYSTEM:
                                 GND       -------------------        -> ESP GND  -> NEGATIVE
                                 VCC       -------------------        -> ESP 3.3v
 
-                                STBY      -------------------        -> GPIO 8
+                                STBY      -------------------        -> GPIO -> 3.3V
                                 PWMA      -------------------        -> GPIO 5
                                 PWMB      -------------------        -> GPIO 4
                                 AIN1      -------------------        -> GPIO 2
@@ -166,23 +169,37 @@ PHYSICAL COMPONENT CONNECTIVITY OF THE SYSTEM:
                                 BIN1      -------------------        -> GPIO 42
                                 BIN2      -------------------        -> GPIO 41
                         
-                        SCLK    ------    -------------------        -> GPIO 13
-                        MOSI    ------    -------------------        -> GPIO 12
-                        MISO    ------    -------------------        -> GPIO 14
-                        CS      ------    -------------------        -> GPIO 11
-                        DC      ------    -------------------        -> GPIO 10
-                        RST     ------    -------------------        -> GPIO 9
+                        SCLK    ------    -------------------        -> GPIO 14
+                        MOSI    ------    -------------------        -> GPIO 13
+                        MISO    ------    -------------------        -> GPIO  -> Removed
+                        CS      ------    -------------------        -> GPIO 12
+                        DC      ------    -------------------        -> GPIO 11
+                        RST     ------    -------------------        -> GPIO 10
                         LED     ------    -------------------        -> 3.3v
                         GND     ------    -------------------        -> ESP GND  
                         VCC     ------    -------------------        -> ESP 5.0v 
 
-            RX          ------  ------    -------------------        -> GPIO 18
-            TX          ------  ------    -------------------        -> GPIO 16
+            RX          ------  ------    -------------------        -> GPIO -> Freeup
+            TX          ------  ------    -------------------        -> GPIO 9
             VCC         ------  ------    -------------------        -> ESP 5.0v
             GND         ------  ------    -------------------        -> ESP GND
 
+Free GPIO(23): 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 21, 38, 39, 40, 41, 42
+FREE(9): [8, 18, 17], 21, [38, 39, 40]
+PARTIAL FREE(4): 0, 3, 45, 46
 
+IMU1    IMU2    Servo   UDA1334A   MIC1    MIC2     ESP32S3
+                        BCLK       BCLK    BCLK     ->GPIO 17
+                        WS         WS      WS       ->GPIO 8
+                        ______     SD      SD       ->GPIO 18
+                        DIN        ___     ___      ->GPIO 21
+                Data    ______     ___     ___      ->GPIO 38
+SDA     SDA     _____   _____      _____   _____    ->GPIO 39
+SCLK    SCLK    _____   _____      _____   _____    ->GPIO 40
 
+CAMERA (Alt) -> 46
+Sensor(Yellow) ->0
+Sensor(Brown) ->45
 
 
 <!-- DRIVER    MOTOR (+ ENCODER)           ESP          BATTERY
@@ -206,7 +223,7 @@ VM        -------------------        ------      -> POSITIVE
 GND       -------------------        -> ESP GND  -> NEGATIVE
 VCC       -------------------        -> ESP VCC
 
-STBY      -------------------        -> GPIO(High) 8
+STBY      -------------------        -> GPIO(High) 8 -> connect to 3.3v to free 8
 PWMA      -------------------        -> GPIO 5
 PWMB      -------------------        -> GPIO 4
 AIN1      -------------------        -> GPIO 2

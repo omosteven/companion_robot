@@ -56,22 +56,22 @@ Camera::~Camera()
 esp_err_t Camera::init()
 {
 
-       gpio_num_t rx_gpio = static_cast<gpio_num_t>(RX_PIN);
-        gpio_reset_pin(rx_gpio);
-        gpio_set_direction(rx_gpio, GPIO_MODE_INPUT);
-        gpio_set_pull_mode(rx_gpio, GPIO_PULLUP_ONLY); // Force it HIGH if empty
-        vTaskDelay(pdMS_TO_TICKS(10));                                           // 2. Read the physical pin state
-        if (gpio_get_level(rx_gpio) == 0)
-        {
-            ESP_LOGE("CameraCheck", "X DETECT: Camera board is NOT physically connected or lacks power!");
-            return ESP_ERR_NOT_FOUND;
-        }
-        ESP_LOGI("CameraCheck", "DETECT: Camera board connection detected on pin %d!", RX_PIN);
-    
-        /*
+    //    gpio_num_t rx_gpio = static_cast<gpio_num_t>(RX_PIN);
+    //     gpio_reset_pin(rx_gpio);
+    //     gpio_set_direction(rx_gpio, GPIO_MODE_INPUT);
+    //     gpio_set_pull_mode(rx_gpio, GPIO_PULLUP_ONLY); // Force it HIGH if empty
+    //     vTaskDelay(pdMS_TO_TICKS(10));                                           // 2. Read the physical pin state
+    //     if (gpio_get_level(rx_gpio) == 0)
+    //     {
+    //         ESP_LOGE("CameraCheck", "X DETECT: Camera board is NOT physically connected or lacks power!");
+    //         return ESP_ERR_NOT_FOUND;
+    //     }
+    //     ESP_LOGI("CameraCheck", "DETECT: Camera board connection detected on pin %d!", RX_PIN);
+
+    /*
      * Allocate triple JPEG buffers.
      *
-     * 3 × 128 KB 
+     * 3 × 128 KB
      *
      * PSRAM is preferred.
      * This will be used to store frames in three different states
@@ -135,7 +135,7 @@ esp_err_t Camera::init()
     ESP_ERROR_CHECK(
         uart_set_pin(
             UART_PORT,
-            TX_PIN,
+            UART_PIN_NO_CHANGE,
             RX_PIN,
             UART_PIN_NO_CHANGE,
             UART_PIN_NO_CHANGE));
@@ -159,6 +159,7 @@ esp_err_t Camera::startTask()
     }
 
     BaseType_t result =
+        // xTaskCreatePinnedToCoreWithCaps(
         xTaskCreatePinnedToCore(
             Camera::rxTaskTrampoline,
             "cam_rx_loop",
@@ -166,7 +167,11 @@ esp_err_t Camera::startTask()
             this,
             8,
             &m_taskHandle,
-            0);
+            0
+            // MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT
+        );
+
+          
 
     return (result == pdPASS)
                ? ESP_OK
@@ -342,7 +347,7 @@ const uint8_t *Camera::acquireLatestFrame(
     if (best)
     {
         // Mark it READING so UART can never overwrite it.
-         
+
         best->state = BufferState::READING;
 
         out_frame_size = best->size;
@@ -381,7 +386,7 @@ void Camera::releaseFrame()
 
     xSemaphoreGive(m_bufferMutex);
     int64_t t1 = esp_timer_get_time();
-    ESP_LOGI("RELEASE_FRAME_TIME", "Camera Release time = %" PRId64 " us", t1 - t0);
+    // ESP_LOGI("RELEASE_FRAME_TIME", "Camera Release time = %" PRId64 " us", t1 - t0);
 }
 
 void Camera::executionLoop()
@@ -395,11 +400,11 @@ void Camera::executionLoop()
      * If a buffer is FREE (f1), change it to RECEIVING, fetch the incoming frame.
      * If fetch incoming fails, force the same buffer to go back to FREE and jump back to header search
      * If the fetch incoming succeeds, update all READY buffer as FREE first, push the frame to the 'RECEIVING' buffer(f1) and update it to READY state using publishFrame().
-     * 
+     *
      * FREE(idle) -> RECEIVING(preparing for new frame) -> READY(frame stored) -> READING(dispatch to screen) - FREE(completed, now free)
-     * 
+     *
      * The READY buffer is the one to be sent for display. Call acquireLastFrame to retrieve the lastest READY and change the state to READING
-     * Then trigger any 
+     * Then trigger any
      * After a frame is displayed, update its state from READING to FREE using releaseFrame()
      * */
 
@@ -417,7 +422,7 @@ void Camera::executionLoop()
         const int64_t t_sync = esp_timer_get_time();
 
         if (!readExact(
-            // retrieve the 4byte 'size'
+                // retrieve the 4byte 'size'
                 reinterpret_cast<uint8_t *>(&incoming_len),
                 sizeof(incoming_len)))
         {
@@ -551,10 +556,6 @@ bool Camera::isValidJpeg(
 // I (34240) UART_TIMING: sync=13053 us | size=15 us | buffer=16 us | payload=34507 us | publish=7592 us | TOTAL=55183 us | jpeg=6823 bytes
 // I (34250) IS_VALID_JPEG_TIME: jpeg validation = 5 us
 // I (34290) DRAW_REALTIME_CAMERA_TIME: header=292 us | decode=18994 us | lcd=13469 us | decode+lcd=32463 us | TOTAL=32770 us | frame_size=6823 | frame_number=394
-
-
-
-
 
 // I (471810) RELEASE_FRAME_TIME: Camera Release time = 11 us
 // I (471810) ACQUIRE_LATEST_FRAME_TIME: Acquire time = 15 us

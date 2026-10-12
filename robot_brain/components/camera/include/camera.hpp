@@ -17,8 +17,8 @@ public:
     static constexpr int BAUD_RATE = 2000000;
     // static constexpr int BAUD_RATE = 115200;
 
-    static constexpr int RX_PIN = 18;
-    static constexpr int TX_PIN = 17;
+    static constexpr int RX_PIN = 9;
+    static constexpr int TX_PIN = 9;
 
 
     static constexpr size_t RX_BUF_SIZE = 32768;

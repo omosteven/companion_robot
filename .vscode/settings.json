@@ -1,11 +1,12 @@
 {
   "idf.currentSetup": "/Users/StevenOmole/.espressif/v6.0.2/esp-idf",
-  "idf.port": "/dev/tty.usbserial-14420",
+  "idf.port": "/dev/tty.usbmodem14201",
   "idf.openOcdConfigs": [
     "board/esp32s3-builtin.cfg"
   ],
   "idf.customExtraVars": {
-    "IDF_TARGET": "esp32s3"
+    "IDF_TARGET": "esp32s3",
+    "OPENOCD_USB_ADAPTER_LOCATION": "20-1"
   },
   "clangd.path": "/Users/StevenOmole/.espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clangd",
   "clangd.arguments": [
@@ -13,7 +14,7 @@
     "--query-driver=**",
     "--compile-commands-dir=/Users/StevenOmole/Documents/Robotics/bbunit8/build"
   ],
-  "idf.flashType": "UART",
+  "idf.flashType": "JTAG",
   "idf.ccacheEnable": true,
   "idf.ninjaArgs": [
     "-j8"

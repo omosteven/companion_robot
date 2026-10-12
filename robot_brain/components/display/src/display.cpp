@@ -905,8 +905,8 @@ esp_err_t Display::draw_realtime_camera(
             panel_,
             start_x,
             start_y,
-            start_x + header.width,
-            start_y + header.height,
+            start_x + 50,
+            start_y + 50,
             camera_rgb565_buffer_);
 
     int64_t t_lcd_end = esp_timer_get_time();

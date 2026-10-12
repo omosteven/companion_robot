@@ -10,5 +10,7 @@ idf_component_register(
         neck
         camera
         wheel
-
+        audio
+        wifi_manager
+        ota_manager
 )

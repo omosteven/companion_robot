@@ -1,0 +1,363 @@
+#include "motor.hpp"
+#
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "driver/gpio.h"
+#include <cstdint>
+#include "esp_log.h"
+#include "esp_timer.h"
+#include <cmath>
+
+#define MOTOR_FREQUENCY (20000)
+#define MOTOR_RESOLUTION (LEDC_TIMER_10_BIT)
+
+Motor::Motor()
+    : speed_mode_(LEDC_LOW_SPEED_MODE) {
+
+      };
+
+Motor::~Motor() {
+    // if (motor_A_pwm_channel_)
+    // {
+    //     ledc_stop(speed_mode_, motor_A_pwm_channel_, 0);
+    // }
+
+    // if (motor_B_pwm_channel_)
+    // {
+    //     ledc_stop(speed_mode_, motor_B_pwm_channel_, 0);
+    // }
+};
+
+static QueueHandle_t gpio_evt_queue = NULL;
+
+struct InterruptData {
+    uint32_t pin_number;
+    int64_t timestamp_us;
+    int pin_level;
+};
+
+static void IRAM_ATTR encoder_isr_handler(void* arg){
+    uint32_t gpio_num = (uint32_t) arg;
+    InterruptData data;
+    data.pin_number = gpio_num;
+    data.timestamp_us = esp_timer_get_time();
+    data.pin_level = gpio_get_level((gpio_num_t)gpio_num);
+
+    xQueueSendFromISR(gpio_evt_queue, &data, NULL);
+}
+
+static void gpio_task(void* arg){
+   InterruptData received_data;
+
+    while (true){
+        if(xQueueReceive(gpio_evt_queue, &received_data, portMAX_DELAY)){
+            ESP_LOGI("INTERRUPT", "Interupt detected pin no=%d pin state=%d", received_data.pin_number, received_data.pin_level);
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+    }
+}
+
+esp_err_t Motor::encoder_init()
+{
+     encY1_gpio_ = static_cast<gpio_num_t>(ENCODER_YELLOW_A_PIN);
+    gpio_config_t io_conf = {};
+    io_conf.pin_bit_mask = (1ULL << ENCODER_YELLOW_A_PIN);
+    io_conf.mode = GPIO_MODE_INPUT;
+    io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    io_conf.intr_type = GPIO_INTR_ANYEDGE; // both transition 0-1 (rise & fall)
+    //  GPIO_INTR_NEGEDGE; // only single state
+
+    gpio_config(&io_conf);
+
+    gpio_evt_queue = xQueueCreate(10, sizeof(InterruptData));
+
+    xTaskCreate(gpio_task, "gpio_task_example", 3072, NULL, 5, NULL);
+
+    gpio_install_isr_service(ESP_INTR_FLAG_LEVEL1);
+    gpio_isr_handler_add(encY1_gpio_, encoder_isr_handler, (void*) encY1_gpio_);
+
+    ESP_LOGI("ENCODER", "Interrupt tracking successfully armed");
+
+    //  while (true) {
+    //     vTaskDelay(pdMS_TO_TICKS(1000));
+    // }
+    // encY1_gpio_ = static_cast<gpio_num_t>(ENCODER_YELLOW_A_PIN);
+    // encG1_gpio_ = static_cast<gpio_num_t>(ENCODER_GREEN_A_PIN);
+    // encY2_gpio_ = static_cast<gpio_num_t>(ENCODER_YELLOW_B_PIN);
+    // encG2_gpio_ = static_cast<gpio_num_t>(ENCODER_GREEN_B_PIN);
+
+    // gpio_set_direction(encY1_gpio_, GPIO_MODE_INPUT);
+    // gpio_set_direction(encG1_gpio_, GPIO_MODE_INPUT);
+
+    // gpio_set_direction(encY2_gpio_, GPIO_MODE_INPUT);
+    // gpio_set_direction(encG2_gpio_, GPIO_MODE_INPUT);
+
+    // initialized_encoder_ = true;
+
+    return ESP_OK;
+}
+
+esp_err_t Motor::init_motor_pwm()
+{
+
+    gpio_num_t pwmA_gpio_ = static_cast<gpio_num_t>(DRIVER_PWM_A_PIN);
+    gpio_num_t pwmB_gpio_ = static_cast<gpio_num_t>(DRIVER_PWM_B_PIN);
+
+    ledc_timer_config_t ledc_timer{};
+
+    ledc_timer.speed_mode = LEDC_LOW_SPEED_MODE;
+    ledc_timer.duty_resolution = MOTOR_RESOLUTION;
+    ledc_timer.timer_num = LEDC_TIMER_1;
+    ledc_timer.freq_hz = MOTOR_FREQUENCY;
+    ledc_timer.clk_cfg = LEDC_AUTO_CLK;
+
+    esp_err_t timer_err = ledc_timer_config(&ledc_timer);
+
+    if (timer_err != ESP_OK)
+    {
+        ESP_LOGE("MOTOR PWM", "Failed to initialize LEDC Timer configuration");
+        return timer_err;
+    }
+
+    motor_A_pwm_channel_ = LEDC_CHANNEL_0;
+    motor_B_pwm_channel_ = LEDC_CHANNEL_1;
+
+    ledc_channel_config_t motor_A_pwm_channel_config{};
+
+    motor_A_pwm_channel_config.gpio_num = pwmA_gpio_;
+    motor_A_pwm_channel_config.speed_mode = LEDC_LOW_SPEED_MODE;
+    motor_A_pwm_channel_config.channel = motor_A_pwm_channel_;
+    // motor_A_pwm_channel_.intr_type = LEDC_INTR_DISABLE;
+    motor_A_pwm_channel_config.timer_sel = LEDC_TIMER_1;
+    motor_A_pwm_channel_config.duty = 0;
+    motor_A_pwm_channel_config.hpoint = 0;
+
+    ledc_channel_config_t motor_B_pwm_channel_config{};
+    motor_B_pwm_channel_config.gpio_num = pwmB_gpio_;
+    motor_B_pwm_channel_config.speed_mode = LEDC_LOW_SPEED_MODE;
+    motor_B_pwm_channel_config.channel = motor_B_pwm_channel_;
+    // motor_B_pwm_channel_.intr_type = LEDC_INTR_DISABLE;
+    motor_B_pwm_channel_config.timer_sel = LEDC_TIMER_1;
+    motor_B_pwm_channel_config.duty = 0;
+    motor_B_pwm_channel_config.hpoint = 0;
+
+    esp_err_t err = ledc_channel_config(&motor_A_pwm_channel_config);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE("MOTOR PWM", "Failed to initialize channel A PWM configuration");
+        return err;
+    }
+
+    err = ledc_channel_config(&motor_B_pwm_channel_config);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE("MOTOR PWM", "Failed to initialize channel B PWM configuration");
+        return err;
+    }
+
+    ESP_LOGI("MOTOR PWM", "PWM Configuration for A and B Successful");
+
+    return ESP_OK;
+};
+
+esp_err_t Motor::driver_init()
+{
+    stdby_gpio_ = static_cast<gpio_num_t>(DRIVER_STBY_PIN);
+
+    ain1_gpio_ = static_cast<gpio_num_t>(DRIVER_AIN_1_PIN);
+    ain2_gpio_ = static_cast<gpio_num_t>(DRIVER_AIN_2_PIN);
+    bin1_gpio_ = static_cast<gpio_num_t>(DRIVER_BIN_1_PIN);
+    bin2_gpio_ = static_cast<gpio_num_t>(DRIVER_BIN_2_PIN);
+
+    gpio_set_direction(stdby_gpio_, GPIO_MODE_OUTPUT);
+
+    gpio_set_direction(ain1_gpio_, GPIO_MODE_OUTPUT);
+    gpio_set_direction(ain2_gpio_, GPIO_MODE_OUTPUT);
+
+    gpio_set_direction(bin1_gpio_, GPIO_MODE_OUTPUT);
+    gpio_set_direction(bin2_gpio_, GPIO_MODE_OUTPUT);
+
+    gpio_set_level(ain1_gpio_, 0);
+    gpio_set_level(ain2_gpio_, 0);
+    gpio_set_level(bin1_gpio_, 0);
+    gpio_set_level(bin2_gpio_, 0);
+
+    gpio_set_level(stdby_gpio_, 1);
+
+    // -- detect if gpios are connected or not ---
+    // gpio_set_pull_mode(stdby_gpio_, GPIO_PULLUP_ONLY); // enable the driver
+
+    vTaskDelay(pdMS_TO_TICKS(10));
+    // if (gpio_get_level(stdby_gpio_) == 0)
+    // {
+    //     ESP_LOGE("MOTOR DRIVER", "Driver Not Detected or Not Physically connected!");
+    //     return ESP_ERR_NOT_FOUND;
+    // }
+    // we assume the driver is awaken because it is impossible for the driver to communicate back its stdby state
+    initialized_driver_ = true;
+    ESP_LOGI("MOTOR DRIVER", "DETECTION successful!");
+    return ESP_OK;
+}
+
+esp_err_t Motor::init()
+{
+    esp_err_t driver_err = this->driver_init();
+
+    esp_err_t encoder_err = this->encoder_init();
+    esp_err_t motor_pwm_err = this->init_motor_pwm();
+
+    if ((driver_err != ESP_OK) | (encoder_err != ESP_OK) | (motor_pwm_err != ESP_OK))
+    {
+        return ESP_FAIL;
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t Motor::set_motor_speed_channel(ledc_channel_t channel, uint32_t speed, uint32_t max_speed)
+{
+    // max duty = 100% = 6000rpm = 12v
+    // 50% duty = 3000rpm/12v
+    if (speed > max_speed)
+        speed = max_speed;
+
+    // uint32_t speed_percentage = speed / max_speed * 100;
+    uint32_t max_duty = (1 << MOTOR_RESOLUTION) - 1; // total number of ticks/steps possible = 2^10 -1 = 1023
+
+    uint32_t target_duty = (speed * max_duty) / max_speed;
+
+    ledc_set_duty(LEDC_LOW_SPEED_MODE, channel, target_duty);
+    ledc_update_duty(LEDC_LOW_SPEED_MODE, channel);
+
+    return ESP_OK;
+};
+
+esp_err_t Motor::set_motor_speed(uint32_t speed, Wheel wheel)
+{
+    if (!initialized_driver_)
+        return ESP_ERR_NOT_FOUND;
+
+    this->set_motor_speed_channel(wheel == Wheel::LEFT ? motor_A_pwm_channel_ : motor_B_pwm_channel_, speed, MOTOR_MAX_SPEED);
+    return ESP_OK;
+}
+
+esp_err_t Motor::set_motor_direction(MotorDirection direction, Wheel wheel)
+{
+
+    if (!initialized_driver_)
+        return ESP_ERR_NOT_FOUND;
+    gpio_set_level(
+        wheel == Wheel::LEFT ? ain1_gpio_ : bin1_gpio_,
+        direction == MotorDirection::FORWARD ? 1 : 0);
+
+    gpio_set_level(
+        wheel == Wheel::LEFT ? ain2_gpio_ : bin2_gpio_,
+        direction == MotorDirection::FORWARD ? 0 : 1);
+
+    return ESP_OK;
+}
+
+void Motor::turn_right(uint32_t speed, uint32_t duration_ms)
+{
+
+    if (speed == 0)
+        return;
+
+    uint32_t differential_speed = speed - 100;
+
+    if (speed <= 0)
+        differential_speed = speed;
+
+    this->set_motor_direction(this->MotorDirection::FORWARD, this->Wheel::RIGHT);
+    this->set_motor_direction(this->MotorDirection::FORWARD, this->Wheel::LEFT);
+
+    this->set_motor_speed(differential_speed, this->Wheel::RIGHT);
+    this->set_motor_speed(speed, this->Wheel::LEFT);
+    if (duration_ms > 0)
+    {
+        vTaskDelay(
+            pdMS_TO_TICKS(duration_ms));
+        this->set_motor_speed(0, this->Wheel::LEFT);
+        this->set_motor_speed(0, this->Wheel::RIGHT);
+    }
+}
+
+void Motor::turn_left(uint32_t speed, uint32_t duration_ms)
+{
+    if (speed == 0)
+        return;
+
+    uint32_t differential_speed = speed - 100;
+
+    if (speed <= 0)
+        differential_speed = speed;
+    this->set_motor_direction(this->MotorDirection::FORWARD, this->Wheel::LEFT);
+    this->set_motor_direction(this->MotorDirection::FORWARD, this->Wheel::RIGHT);
+
+    this->set_motor_speed(differential_speed, this->Wheel::LEFT);
+    this->set_motor_speed(speed, this->Wheel::RIGHT);
+    if (duration_ms > 0)
+    {
+        vTaskDelay(
+            pdMS_TO_TICKS(duration_ms));
+        this->set_motor_speed(0, this->Wheel::LEFT);
+        this->set_motor_speed(0, this->Wheel::RIGHT);
+    }
+}
+
+void Motor::reverse(uint32_t speed, uint32_t duration_ms)
+{
+    if (speed == 0)
+        return;
+    this->set_motor_direction(this->MotorDirection::BACKWARD, this->Wheel::LEFT);
+    this->set_motor_direction(this->MotorDirection::BACKWARD, this->Wheel::RIGHT);
+
+    this->set_motor_speed(speed, this->Wheel::RIGHT);
+    this->set_motor_speed(speed, this->Wheel::LEFT);
+
+    if (duration_ms > 0)
+    {
+        vTaskDelay(
+            pdMS_TO_TICKS(duration_ms));
+        this->set_motor_speed(0, this->Wheel::LEFT);
+        this->set_motor_speed(0, this->Wheel::RIGHT);
+    }
+}
+void Motor::spin(uint32_t speed, uint32_t duration_ms)
+{
+    if (speed == 0)
+        return;
+    this->set_motor_direction(this->MotorDirection::FORWARD, this->Wheel::LEFT);
+    this->set_motor_direction(this->MotorDirection::BACKWARD, this->Wheel::RIGHT);
+
+    this->set_motor_speed(speed, this->Wheel::RIGHT);
+    this->set_motor_speed(speed, this->Wheel::LEFT);
+
+    if (duration_ms > 0)
+    {
+        vTaskDelay(
+            pdMS_TO_TICKS(duration_ms));
+        this->set_motor_speed(0, this->Wheel::LEFT);
+        this->set_motor_speed(0, this->Wheel::RIGHT);
+    }
+}
+
+void Motor::move(uint32_t speed, uint32_t duration_ms)
+{
+    if (speed == 0)
+        return;
+    this->set_motor_direction(this->MotorDirection::FORWARD, this->Wheel::LEFT);
+    this->set_motor_direction(this->MotorDirection::FORWARD, this->Wheel::RIGHT);
+
+    this->set_motor_speed(speed, this->Wheel::RIGHT);
+    this->set_motor_speed(speed, this->Wheel::LEFT);
+
+    if (duration_ms > 0)
+    {
+        vTaskDelay(
+            pdMS_TO_TICKS(duration_ms));
+        this->set_motor_speed(0, this->Wheel::LEFT);
+        this->set_motor_speed(0, this->Wheel::RIGHT);
+    }
+}

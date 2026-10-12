@@ -190,3 +190,156 @@ extern "C" void app_main(void)
 }
 
 // idf.py -p /dev/cu.usbmodem5AE70714221 flash
+
+Okay, I did a listen for 3 secs and play the 3 secs now on 48K sample rate without shifting any bit on both listen and speaking to confirm that the samples recorded were actually the same as being sent to the speaker. also I removed DC offset. so see the log
+
+
+
+LISTENING
+
+
+
+SPEAKING
+
+
+
+
+        //    const uint32_t left =
+        //     static_cast<uint32_t>(left_samples[i]>>8) ;
+
+        // const uint32_t right =
+        //     static_cast<uint32_t>(right_samples[i]>>8);
+
+        // const size_t offset = i * BYTES_PER_FRAME;
+
+        // // Left channel
+        // stereo_buffer[offset + 0] =
+        //     static_cast<uint8_t>((right >> 16) & 0xFF);
+
+        // stereo_buffer[offset + 1] =
+        //     static_cast<uint8_t>((right >> 8) & 0xFF);
+
+        // stereo_buffer[offset + 2] =
+        //     static_cast<uint8_t>(right & 0xFF);
+            
+
+        // // Right channel
+        // stereo_buffer[offset + 3] =0;
+
+        // stereo_buffer[offset + 4] =0;
+
+        // stereo_buffer[offset + 5] =0;
+
+
+
+
+
+
+void test_speaker(Sound &sound)
+{
+    // sound.enable_speakers();
+
+    constexpr float LOW_FREQ = 500.0f;
+    constexpr float HIGH_FREQ = 1500.0f;
+    constexpr float SWEEP_PERIOD = 1.0f;
+    constexpr float AMPLITUDE = 3000000.0f; // Perfect for 24-bit audio depth
+    constexpr float FADE_SECONDS = 0.02f;
+    constexpr float PI = 3.14159265358979323846f;
+
+    constexpr size_t DURATION_SECONDS = 5;
+    constexpr size_t CHUNK_FRAMES = 512;
+
+    const size_t total_frames = Sound::SAMPLE_RATE * DURATION_SECONDS;
+    const float fade_samples = FADE_SECONDS * Sound::SAMPLE_RATE;
+
+    std::vector<uint8_t> buffer(CHUNK_FRAMES * 2 * 3);
+    // std::vector<int32_t> buffer(CHUNK_FRAMES * 2);
+
+    std::vector<int32_t> dump(CHUNK_FRAMES);
+
+    float oscillator_phase = 0.0f;
+    size_t generated = 0;
+
+    while (generated < total_frames)
+    {
+        const size_t frames = std::min(CHUNK_FRAMES, total_frames - generated);
+
+        for (size_t i = 0; i < frames; ++i)
+        {
+            const size_t sample_index = generated + i;
+            const float t = static_cast<float>(sample_index) / Sound::SAMPLE_RATE;
+
+            // 1. Calculate the target frequency for this exact moment
+            const float sweep = 0.5f * (1.0f + std::sinf(2.0f * PI * t / SWEEP_PERIOD));
+            const float frequency = LOW_FREQ + sweep * (HIGH_FREQ - LOW_FREQ);
+
+            // 2. Continuous phase step (No fmodf for speed)
+            oscillator_phase += (2.0f * PI * frequency) / static_cast<float>(Sound::SAMPLE_RATE);
+            if (oscillator_phase >= 2.0f * PI)
+            {
+                oscillator_phase -= 2.0f * PI;
+            }
+
+            // 3. Smooth Envelope Fading
+            float envelope = 1.0f;
+            if (sample_index < fade_samples) // Fade-in
+            {
+                envelope = static_cast<float>(sample_index) / fade_samples;
+            }
+            else if ((total_frames - sample_index) < fade_samples) // Fade-out
+            {
+                envelope = static_cast<float>(total_frames - sample_index) / fade_samples;
+            }
+
+            // 4. Generate audio value
+            const float value = std::sinf(oscillator_phase) * AMPLITUDE * envelope;
+            const int32_t sample = static_cast<int32_t>(value);
+
+            // Keep only the 24-bit two's-complement representation.
+            const uint32_t packed =
+                static_cast<uint32_t>(sample) &
+                0x00FFFFFF;
+
+            // -------------------------------------------------
+            // One stereo frame = 6 bytes
+            //
+            // [ L2 L1 L0 ][ R2 R1 R0 ]
+            // -------------------------------------------------
+
+            const size_t offset =
+                i * 6;
+
+            // LEFT CHANNEL = silence
+            buffer[offset + 0] =
+                static_cast<uint8_t>(
+                    (packed >> 16) & 0xFF);
+            // RIGHT CHANNEL = siren
+            buffer[offset + 1] =
+                static_cast<uint8_t>(
+                    (packed >> 8) & 0xFF);
+
+            buffer[offset + 2] = static_cast<uint8_t>(
+                packed & 0xFF);
+
+            buffer[offset + 3] = 0;
+
+            buffer[offset + 4] =
+                0;
+
+            buffer[offset + 5] = 0;
+        }
+
+        // const esp_err_t err = sound.speak(buffer.data(), buffer.size(), CHUNK_FRAMES * 2);
+
+        const esp_err_t err = sound.speak_r(buffer.data(), buffer.size(), CHUNK_FRAMES * 2);
+        if (err != ESP_OK)
+        {
+            ESP_LOGE("SirenTest", "speak() failed: %s", esp_err_to_name(err));
+            return;
+        }
+
+        generated += frames;
+    }
+
+    ESP_LOGW("SirenTest", "Siren finished.");
+}

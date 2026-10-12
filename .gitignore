@@ -12,5 +12,5 @@ robot_camera/managed_components
 
 build
 
-robot_brain/components
-./robot_brain/components
+# robot_brain/components
+# ./robot_brain/components
